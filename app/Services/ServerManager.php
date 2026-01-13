@@ -104,6 +104,14 @@ class ServerManager
     }
 
     /**
+     * Check if a server name already exists.
+     */
+    public function nameExists(string $name): bool
+    {
+        return Server::where('name', $name)->exists();
+    }
+
+    /**
      * Validate server data.
      */
     public function validate(array $data): array
@@ -132,9 +140,7 @@ class ServerManager
             $errors['username'] = 'Username is required';
         }
 
-        if (empty($data['password'])) {
-            $errors['password'] = 'Password is required';
-        }
+        // Password is optional
 
         if (isset($data['ssh_port']) && ! empty($data['ssh_port'])) {
             if (! is_numeric($data['ssh_port'])) {

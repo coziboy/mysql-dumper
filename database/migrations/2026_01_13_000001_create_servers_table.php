@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('host');
             $table->integer('port')->default(3306);
             $table->string('username');
-            $table->text('password'); // Will be encrypted in the model
+            $table->text('password')->nullable(); // Will be encrypted in the model (optional)
             $table->string('database')->nullable();
             $table->string('charset')->default('utf8mb4');
             $table->string('collation')->default('utf8mb4_unicode_ci');

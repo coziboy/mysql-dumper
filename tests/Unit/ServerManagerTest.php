@@ -255,7 +255,7 @@ test('validates required fields', function () {
     expect($errors)->toHaveKey('name')
         ->and($errors)->toHaveKey('host')
         ->and($errors)->toHaveKey('username')
-        ->and($errors)->toHaveKey('password');
+        ->and($errors)->not->toHaveKey('password'); // Password is optional
 });
 
 test('validates port range', function () {
