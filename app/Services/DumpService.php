@@ -40,8 +40,15 @@ class DumpService
                 ];
             }
 
-            // Generate output path if not provided
-            $outputPath = $options->outputPath ?? $this->generateOutputPath($options->database, $options->gzip);
+            // Generate output path if not provided or if a directory was provided
+            $outputPath = $options->outputPath;
+            if ($outputPath === null) {
+                $outputPath = $this->generateOutputPath($options->database, $options->gzip);
+            } elseif (is_dir($outputPath)) {
+                // If a directory was provided, generate filename within that directory
+                $filename = $this->generateOutputPath($options->database, $options->gzip);
+                $outputPath = rtrim($outputPath, '/') . '/' . $filename;
+            }
 
             // Build mysqldump command
             $command = $this->buildCommand($server, $options, $connectionOverride);
