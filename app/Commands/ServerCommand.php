@@ -321,6 +321,65 @@ class ServerCommand extends Command
             ) ?: null;
         }
 
+        // Ask about SSH tunnel update
+        $updateSshTunnel = confirm(label: 'Update SSH tunnel?', default: false);
+        if ($updateSshTunnel) {
+            if (confirm(label: 'Use SSH tunnel?', default: $server->hasSshTunnel())) {
+                $data['ssh_host'] = text(
+                    label: 'SSH Host',
+                    default: $server->ssh_host ?? '',
+                    required: true,
+                    validate: fn ($value) => empty($value) ? 'SSH host is required when using SSH tunnel' : null
+                );
+                $data['ssh_port'] = text(
+                    label: 'SSH Port',
+                    default: (string) ($server->ssh_port ?? 22),
+                    required: true,
+                    validate: fn ($value) => match (true) {
+                        empty($value) => 'SSH port is required',
+                        ! is_numeric($value) => 'SSH port must be a number',
+                        $value < 1 || $value > 65535 => 'SSH port must be between 1 and 65535',
+                        default => null,
+                    }
+                );
+                $data['ssh_username'] = text(
+                    label: 'SSH Username',
+                    default: $server->ssh_username ?? '',
+                    required: true,
+                    validate: fn ($value) => empty($value) ? 'SSH username is required when using SSH tunnel' : null
+                );
+
+                $authMethod = select(
+                    label: 'SSH Authentication',
+                    options: ['password' => 'Password', 'key' => 'Key']
+                );
+
+                if ($authMethod === 'password') {
+                    $data['ssh_password'] = password(
+                        label: 'SSH Password',
+                        required: true,
+                        validate: fn ($value) => empty($value) ? 'SSH password is required for password authentication' : null
+                    );
+                    $data['ssh_key_path'] = null;
+                } else {
+                    $data['ssh_key_path'] = text(
+                        label: 'SSH Key Path',
+                        default: $server->ssh_key_path ?? '~/.ssh/id_rsa',
+                        required: true,
+                        validate: fn ($value) => empty($value) ? 'SSH key path is required for key authentication' : null
+                    );
+                    $data['ssh_password'] = null;
+                }
+            } else {
+                // Remove SSH tunnel
+                $data['ssh_host'] = null;
+                $data['ssh_port'] = null;
+                $data['ssh_username'] = null;
+                $data['ssh_password'] = null;
+                $data['ssh_key_path'] = null;
+            }
+        }
+
         $manager->update($server, $data);
 
         $this->info("Server '{$server->name}' updated successfully!");

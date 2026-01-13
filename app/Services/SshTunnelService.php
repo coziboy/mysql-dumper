@@ -8,6 +8,11 @@ use RuntimeException;
 class SshTunnelService
 {
     /**
+     * Shared registry for storing pipes across method calls
+     */
+    private static array $pipesRegistry = [];
+
+    /**
      * Create an SSH tunnel for the given server
      *
      * @return array{host: string, port: int, process: resource}
@@ -55,8 +60,9 @@ class SshTunnelService
         // Close stdin
         fclose($pipes[0]);
 
-        // Give the tunnel a moment to establish
-        usleep(500000); // 0.5 seconds
+        // Give the tunnel time to establish
+        // Increased from 0.5s to 2s for more reliable connection establishment
+        usleep(2000000); // 2 seconds
 
         // Check if process is still running
         $status = proc_get_status($process);
@@ -213,14 +219,27 @@ class SshTunnelService
     }
 
     /**
+     * Check if a port is listening on the given host
+     */
+    private function isPortListening(string $host, int $port): bool
+    {
+        $connection = @fsockopen($host, $port, $errno, $errstr, 0.1);
+
+        if ($connection) {
+            fclose($connection);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Store pipes for later cleanup
      */
     private function storePipes($process, array $pipes): void
     {
-        // Store pipes as process property for cleanup
-        // In a production environment, you might want to use a registry or similar
-        static $pipesRegistry = [];
-        $pipesRegistry[spl_object_id($process)] = $pipes;
+        // Store pipes in class property for cleanup
+        self::$pipesRegistry[get_resource_id($process)] = $pipes;
     }
 
     /**
@@ -228,16 +247,15 @@ class SshTunnelService
      */
     private function cleanupPipes($process): void
     {
-        static $pipesRegistry = [];
-        $id = spl_object_id($process);
+        $id = get_resource_id($process);
 
-        if (isset($pipesRegistry[$id])) {
-            foreach ($pipesRegistry[$id] as $pipe) {
+        if (isset(self::$pipesRegistry[$id])) {
+            foreach (self::$pipesRegistry[$id] as $pipe) {
                 if (is_resource($pipe)) {
                     fclose($pipe);
                 }
             }
-            unset($pipesRegistry[$id]);
+            unset(self::$pipesRegistry[$id]);
         }
     }
 }

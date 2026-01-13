@@ -305,6 +305,7 @@ test('server edit command updates server', function () {
         'utf8mb4',               // Charset
         'utf8mb4_unicode_ci',    // Collation
         false,                   // Update password?
+        false,                   // Update SSH tunnel?
     ]);
 
     $this->artisan('server edit edit-server')
@@ -316,4 +317,130 @@ test('server edit command updates server', function () {
     expect($server->host)->toBe('192.168.1.100')
         ->and($server->port)->toBe(3307)
         ->and($server->username)->toBe('dbuser');
+})->skip('Laravel Prompts testing needs further configuration');
+
+test('server edit command adds ssh tunnel with password auth', function () {
+    Server::create([
+        'name' => 'no-tunnel-server',
+        'host' => 'localhost',
+        'port' => 3306,
+        'username' => 'root',
+        'password' => 'secret',
+        'charset' => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+    ]);
+
+    Prompt::fake([
+        'no-tunnel-server',      // Server name
+        'localhost',             // Host
+        '3306',                  // Port
+        'root',                  // Username
+        '',                      // Database
+        'utf8mb4',               // Charset
+        'utf8mb4_unicode_ci',    // Collation
+        false,                   // Update password?
+        true,                    // Update SSH tunnel?
+        true,                    // Use SSH tunnel?
+        'bastion.example.com',   // SSH Host
+        '22',                    // SSH Port
+        'deploy',                // SSH Username
+        'password',              // SSH Authentication (select)
+        'ssh-secret',            // SSH Password
+    ]);
+
+    $this->artisan('server edit no-tunnel-server')
+        ->expectsOutput("Server 'no-tunnel-server' updated successfully!")
+        ->assertSuccessful();
+
+    $server = Server::where('name', 'no-tunnel-server')->first();
+    expect($server->ssh_host)->toBe('bastion.example.com')
+        ->and($server->ssh_port)->toBe(22)
+        ->and($server->ssh_username)->toBe('deploy')
+        ->and($server->ssh_password)->toBe('ssh-secret')
+        ->and($server->ssh_key_path)->toBeNull();
+})->skip('Laravel Prompts testing needs further configuration');
+
+test('server edit command updates existing ssh tunnel to key auth', function () {
+    Server::create([
+        'name' => 'tunnel-server',
+        'host' => 'localhost',
+        'port' => 3306,
+        'username' => 'root',
+        'password' => 'secret',
+        'charset' => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'ssh_host' => 'old-bastion.example.com',
+        'ssh_port' => 22,
+        'ssh_username' => 'old-user',
+        'ssh_password' => 'old-pass',
+    ]);
+
+    Prompt::fake([
+        'tunnel-server',         // Server name
+        'localhost',             // Host
+        '3306',                  // Port
+        'root',                  // Username
+        '',                      // Database
+        'utf8mb4',               // Charset
+        'utf8mb4_unicode_ci',    // Collation
+        false,                   // Update password?
+        true,                    // Update SSH tunnel?
+        true,                    // Use SSH tunnel?
+        'new-bastion.example.com', // SSH Host
+        '2222',                  // SSH Port
+        'new-user',              // SSH Username
+        'key',                   // SSH Authentication (select)
+        '~/.ssh/custom_key',     // SSH Key Path
+    ]);
+
+    $this->artisan('server edit tunnel-server')
+        ->expectsOutput("Server 'tunnel-server' updated successfully!")
+        ->assertSuccessful();
+
+    $server = Server::where('name', 'tunnel-server')->first();
+    expect($server->ssh_host)->toBe('new-bastion.example.com')
+        ->and($server->ssh_port)->toBe(2222)
+        ->and($server->ssh_username)->toBe('new-user')
+        ->and($server->ssh_key_path)->toBe('~/.ssh/custom_key')
+        ->and($server->ssh_password)->toBeNull();
+})->skip('Laravel Prompts testing needs further configuration');
+
+test('server edit command removes ssh tunnel', function () {
+    Server::create([
+        'name' => 'remove-tunnel-server',
+        'host' => 'localhost',
+        'port' => 3306,
+        'username' => 'root',
+        'password' => 'secret',
+        'charset' => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'ssh_host' => 'bastion.example.com',
+        'ssh_port' => 22,
+        'ssh_username' => 'deploy',
+        'ssh_password' => 'ssh-secret',
+    ]);
+
+    Prompt::fake([
+        'remove-tunnel-server',  // Server name
+        'localhost',             // Host
+        '3306',                  // Port
+        'root',                  // Username
+        '',                      // Database
+        'utf8mb4',               // Charset
+        'utf8mb4_unicode_ci',    // Collation
+        false,                   // Update password?
+        true,                    // Update SSH tunnel?
+        false,                   // Use SSH tunnel?
+    ]);
+
+    $this->artisan('server edit remove-tunnel-server')
+        ->expectsOutput("Server 'remove-tunnel-server' updated successfully!")
+        ->assertSuccessful();
+
+    $server = Server::where('name', 'remove-tunnel-server')->first();
+    expect($server->ssh_host)->toBeNull()
+        ->and($server->ssh_port)->toBeNull()
+        ->and($server->ssh_username)->toBeNull()
+        ->and($server->ssh_password)->toBeNull()
+        ->and($server->ssh_key_path)->toBeNull();
 })->skip('Laravel Prompts testing needs further configuration');
