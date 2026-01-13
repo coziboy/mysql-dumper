@@ -70,6 +70,14 @@ test('build command includes drop-tables flag', function () {
     expect($command)->toContain('--add-drop-table');
 });
 
+test('build command includes charset flag', function () {
+    $options = new DumpOptions(database: 'test_db');
+
+    $command = $this->dumpService->buildCommand($this->server, $options);
+
+    expect($command)->toContain('--default-character-set=\'utf8mb4\'');
+});
+
 test('build command includes standard flags', function () {
     $options = new DumpOptions(database: 'test_db');
 

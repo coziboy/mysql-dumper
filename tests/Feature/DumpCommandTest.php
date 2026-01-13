@@ -3,7 +3,6 @@
 use App\Models\Server;
 use App\Services\ConnectionTester;
 use App\Services\DumpService;
-use App\Services\ServerManager;
 use App\ValueObjects\DumpResult;
 
 beforeEach(function () {
@@ -50,6 +49,8 @@ test('dump command fails when both schema-only and data-only flags are set', fun
     $connectionTester = Mockery::mock(ConnectionTester::class);
     $connectionTester->shouldReceive('test')
         ->andReturn(['success' => true, 'message' => 'Connected']);
+    $connectionTester->shouldReceive('listDatabases')
+        ->andReturn(['test_db', 'other_db']);
 
     $this->app->instance(ConnectionTester::class, $connectionTester);
 
@@ -70,6 +71,11 @@ test('dump command parses tables option correctly', function () {
     $connectionTester = Mockery::mock(ConnectionTester::class);
     $connectionTester->shouldReceive('test')
         ->andReturn(['success' => true, 'message' => 'Connected']);
+    $connectionTester->shouldReceive('listDatabases')
+        ->andReturn(['test_db', 'other_db']);
+    $connectionTester->shouldReceive('listTables')
+        ->with(Mockery::type(Server::class), 'test_db')
+        ->andReturn(['users', 'posts', 'comments', 'logs']);
 
     $dumpService = Mockery::mock(DumpService::class);
     $dumpService->shouldReceive('dump')
@@ -100,6 +106,8 @@ test('dump command handles successful dump', function () {
     $connectionTester = Mockery::mock(ConnectionTester::class);
     $connectionTester->shouldReceive('test')
         ->andReturn(['success' => true, 'message' => 'Connected']);
+    $connectionTester->shouldReceive('listDatabases')
+        ->andReturn(['test_db', 'other_db']);
 
     $dumpService = Mockery::mock(DumpService::class);
     $dumpService->shouldReceive('dump')
@@ -126,6 +134,8 @@ test('dump command handles failed dump', function () {
     $connectionTester = Mockery::mock(ConnectionTester::class);
     $connectionTester->shouldReceive('test')
         ->andReturn(['success' => true, 'message' => 'Connected']);
+    $connectionTester->shouldReceive('listDatabases')
+        ->andReturn(['test_db', 'other_db']);
 
     $dumpService = Mockery::mock(DumpService::class);
     $dumpService->shouldReceive('dump')
@@ -166,6 +176,8 @@ test('dump command with gzip flag', function () {
     $connectionTester = Mockery::mock(ConnectionTester::class);
     $connectionTester->shouldReceive('test')
         ->andReturn(['success' => true, 'message' => 'Connected']);
+    $connectionTester->shouldReceive('listDatabases')
+        ->andReturn(['test_db', 'other_db']);
 
     $dumpService = Mockery::mock(DumpService::class);
     $dumpService->shouldReceive('dump')
@@ -192,31 +204,44 @@ test('dump command with gzip flag', function () {
 });
 
 test('dump command with custom output path', function () {
-    // Mock services
-    $connectionTester = Mockery::mock(ConnectionTester::class);
-    $connectionTester->shouldReceive('test')
-        ->andReturn(['success' => true, 'message' => 'Connected']);
+    // Create temporary directory for test
+    $tempDir = sys_get_temp_dir().'/mysql-dumper-test-'.uniqid();
+    mkdir($tempDir, 0777, true);
 
-    $dumpService = Mockery::mock(DumpService::class);
-    $dumpService->shouldReceive('dump')
-        ->once()
-        ->with(
-            Mockery::type(Server::class),
-            Mockery::on(function ($options) {
-                return $options->outputPath === '/custom/path/dump.sql';
-            })
-        )
-        ->andReturn(DumpResult::success('/custom/path/dump.sql', 1024, 1.0));
+    try {
+        // Mock services
+        $connectionTester = Mockery::mock(ConnectionTester::class);
+        $connectionTester->shouldReceive('test')
+            ->andReturn(['success' => true, 'message' => 'Connected']);
+        $connectionTester->shouldReceive('listDatabases')
+            ->andReturn(['test_db', 'other_db']);
 
-    $this->app->instance(ConnectionTester::class, $connectionTester);
-    $this->app->instance(DumpService::class, $dumpService);
+        $dumpService = Mockery::mock(DumpService::class);
+        $dumpService->shouldReceive('dump')
+            ->once()
+            ->with(
+                Mockery::type(Server::class),
+                Mockery::on(function ($options) use ($tempDir) {
+                    return $options->outputPath === $tempDir.'/dump.sql';
+                })
+            )
+            ->andReturn(DumpResult::success($tempDir.'/dump.sql', 1024, 1.0));
 
-    $this->artisan('dump', [
-        '--server' => 'test-server',
-        '--database' => 'test_db',
-        '--output' => '/custom/path/dump.sql',
-    ])
-        ->assertExitCode(0);
+        $this->app->instance(ConnectionTester::class, $connectionTester);
+        $this->app->instance(DumpService::class, $dumpService);
 
-    Mockery::close();
+        $this->artisan('dump', [
+            '--server' => 'test-server',
+            '--database' => 'test_db',
+            '--output' => $tempDir.'/dump.sql',
+        ])
+            ->assertExitCode(0);
+
+        Mockery::close();
+    } finally {
+        // Cleanup
+        if (is_dir($tempDir)) {
+            rmdir($tempDir);
+        }
+    }
 });

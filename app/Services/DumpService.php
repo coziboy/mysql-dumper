@@ -124,6 +124,9 @@ class DumpService
             $command .= ' --password=' . escapeshellarg($server->password);
         }
 
+        // Add charset flag to ensure proper encoding
+        $command .= ' --default-character-set=' . escapeshellarg($server->charset);
+
         // Add schema-only flag
         if ($options->schemaOnly) {
             $command .= ' --no-data';
