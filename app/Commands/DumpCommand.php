@@ -10,7 +10,7 @@ use App\ValueObjects\DumpOptions;
 use LaravelZero\Framework\Commands\Command;
 
 use function Laravel\Prompts\confirm;
-use function Laravel\Prompts\multiselect;
+use function Laravel\Prompts\multisearch;
 use function Laravel\Prompts\search;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\text;
@@ -144,12 +144,28 @@ class DumpCommand extends Command
             return self::FAILURE;
         }
 
-        $tableOptions = array_combine($tables, $tables);
-        $selectedTables = multiselect(
-            label: 'Select tables (all selected by default)',
-            options: $tableOptions,
-            default: $tables
+        // Ask for table selection mode
+        $selectionMode = select(
+            label: 'Table selection',
+            options: [
+                'all' => 'All tables',
+                'specific' => 'Select specific tables (searchable)',
+            ],
+            default: 'all'
         );
+
+        if ($selectionMode === 'all') {
+            $selectedTables = $tables;
+        } else {
+            $selectedTables = multisearch(
+                label: 'Search and select tables',
+                placeholder: 'Type to search tables...',
+                options: fn (string $value) => strlen($value) > 0
+                    ? array_values(array_filter($tables, fn ($table) => stripos($table, $value) !== false))
+                    : $tables,
+                hint: 'Use space to select/deselect, arrows to navigate'
+            );
+        }
 
         // Select export type
         $exportType = select(

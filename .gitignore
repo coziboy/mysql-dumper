@@ -4,6 +4,7 @@
 /.vagrant
 .phpunit.result.cache
 /database/database.sqlite
+.env
 
 # AI-related files
 CLAUDE.md
