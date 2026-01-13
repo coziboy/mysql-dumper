@@ -11,7 +11,9 @@ use LaravelZero\Framework\Commands\Command;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\multiselect;
+use function Laravel\Prompts\search;
 use function Laravel\Prompts\select;
+use function Laravel\Prompts\text;
 
 class DumpCommand extends Command
 {
@@ -107,10 +109,30 @@ class DumpCommand extends Command
             return self::FAILURE;
         }
 
-        $databaseOptions = array_combine($databases, $databases);
-        $database = select(
+        // Reorder databases to put server's configured database first (if set)
+        if ($server->database) {
+            // Find the actual database name (case-insensitive match)
+            $actualDatabase = null;
+            foreach ($databases as $db) {
+                if (strcasecmp($db, $server->database) === 0) {
+                    $actualDatabase = $db;
+                    break;
+                }
+            }
+
+            if ($actualDatabase !== null) {
+                $databases = array_values(array_diff($databases, [$actualDatabase]));
+                array_unshift($databases, $actualDatabase);
+            }
+        }
+
+        // Use searchable database selector
+        $database = search(
             label: 'Select database',
-            options: $databaseOptions
+            options: fn (string $value) => strlen($value) > 0
+                ? array_values(array_filter($databases, fn ($db) => stripos($db, $value) !== false))
+                : $databases,
+            placeholder: 'Search databases...'
         );
 
         // Get list of tables
@@ -154,6 +176,17 @@ class DumpCommand extends Command
             default: false
         );
 
+        // Ask for output path
+        $outputPath = text(
+            label: 'Output path',
+            default: getcwd(),
+            validate: fn (string $value) => match (true) {
+                empty($value) => 'Output path is required.',
+                ! is_dir($value) && ! is_dir(dirname($value)) => 'Output directory does not exist.',
+                default => null
+            }
+        );
+
         // Build dump options
         $dumpOptions = new DumpOptions(
             database: $database,
@@ -161,7 +194,8 @@ class DumpCommand extends Command
             schemaOnly: $schemaOnly,
             dataOnly: $dataOnly,
             dropTables: $dropTables,
-            gzip: $gzip
+            gzip: $gzip,
+            outputPath: $outputPath
         );
 
         // Execute dump
