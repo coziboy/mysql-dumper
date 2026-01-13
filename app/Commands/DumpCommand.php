@@ -175,7 +175,8 @@ class DumpCommand extends Command
                 options: fn (string $value) => strlen($value) > 0
                     ? array_values(array_filter($tables, fn ($table) => stripos($table, $value) !== false))
                     : $tables,
-                hint: 'Use space to select/deselect, arrows to navigate'
+                hint: 'Use space to select/deselect, arrows to navigate',
+                required: true,
             );
         }
 
