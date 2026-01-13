@@ -7,3 +7,4 @@
 
 # AI-related files
 CLAUDE.md
+.claude/settings.local.json
