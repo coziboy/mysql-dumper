@@ -244,11 +244,8 @@ class DumpCommand extends Command
     {
         $this->info('Starting database dump...');
 
-        // Execute dump with spinner
-        $result = $this->task(
-            "Dumping database '{$dumpOptions->database}'",
-            fn () => $dumpService->dump($server, $dumpOptions)
-        );
+        // Execute dump
+        $result = $dumpService->dump($server, $dumpOptions);
 
         if (! $result->success) {
             $this->error("Dump failed: {$result->error}");
