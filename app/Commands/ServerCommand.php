@@ -124,21 +124,80 @@ class ServerCommand extends Command
         $this->info('Add New Server');
 
         $data = [
-            'name' => text(label: 'Server name'),
-            'host' => text(label: 'Host', default: 'localhost'),
-            'port' => text(label: 'Port', default: '3306'),
-            'username' => text(label: 'Username', default: 'root'),
-            'password' => password(label: 'Password'),
+            'name' => text(
+                label: 'Server name',
+                required: true,
+                validate: fn ($value) => match (true) {
+                    empty($value) => 'Server name is required',
+                    $manager->nameExists($value) => 'A server with this name already exists',
+                    default => null,
+                }
+            ),
+            'host' => text(
+                label: 'Host',
+                default: 'localhost',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Host is required' : null
+            ),
+            'port' => text(
+                label: 'Port',
+                default: '3306',
+                required: true,
+                validate: fn ($value) => match (true) {
+                    empty($value) => 'Port is required',
+                    ! is_numeric($value) => 'Port must be a number',
+                    $value < 1 || $value > 65535 => 'Port must be between 1 and 65535',
+                    default => null,
+                }
+            ),
+            'username' => text(
+                label: 'Username',
+                default: 'root',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Username is required' : null
+            ),
+            'password' => password(
+                label: 'Password (optional)',
+                required: false
+            ) ?: null,
             'database' => text(label: 'Database (optional)') ?: null,
-            'charset' => text(label: 'Charset', default: 'utf8mb4'),
-            'collation' => text(label: 'Collation', default: 'utf8mb4_unicode_ci'),
+            'charset' => text(
+                label: 'Charset',
+                default: 'utf8mb4',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Charset is required' : null
+            ),
+            'collation' => text(
+                label: 'Collation',
+                default: 'utf8mb4_unicode_ci',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Collation is required' : null
+            ),
         ];
 
         // Ask about SSH tunnel
         if (confirm(label: 'Use SSH tunnel?', default: false)) {
-            $data['ssh_host'] = text(label: 'SSH Host');
-            $data['ssh_port'] = text(label: 'SSH Port', default: '22');
-            $data['ssh_username'] = text(label: 'SSH Username');
+            $data['ssh_host'] = text(
+                label: 'SSH Host',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'SSH host is required when using SSH tunnel' : null
+            );
+            $data['ssh_port'] = text(
+                label: 'SSH Port',
+                default: '22',
+                required: true,
+                validate: fn ($value) => match (true) {
+                    empty($value) => 'SSH port is required',
+                    ! is_numeric($value) => 'SSH port must be a number',
+                    $value < 1 || $value > 65535 => 'SSH port must be between 1 and 65535',
+                    default => null,
+                }
+            );
+            $data['ssh_username'] = text(
+                label: 'SSH Username',
+                required: true,
+                validate: fn ($value) => empty($value) ? 'SSH username is required when using SSH tunnel' : null
+            );
 
             $authMethod = select(
                 label: 'SSH Authentication',
@@ -146,21 +205,19 @@ class ServerCommand extends Command
             );
 
             if ($authMethod === 'password') {
-                $data['ssh_password'] = password(label: 'SSH Password');
+                $data['ssh_password'] = password(
+                    label: 'SSH Password',
+                    required: true,
+                    validate: fn ($value) => empty($value) ? 'SSH password is required for password authentication' : null
+                );
             } else {
-                $data['ssh_key_path'] = text(label: 'SSH Key Path', default: '~/.ssh/id_rsa');
+                $data['ssh_key_path'] = text(
+                    label: 'SSH Key Path',
+                    default: '~/.ssh/id_rsa',
+                    required: true,
+                    validate: fn ($value) => empty($value) ? 'SSH key path is required for key authentication' : null
+                );
             }
-        }
-
-        // Validate
-        $errors = $manager->validate($data);
-        if (! empty($errors)) {
-            $this->error('Validation failed:');
-            foreach ($errors as $field => $error) {
-                $this->error("  - {$field}: {$error}");
-            }
-
-            return self::FAILURE;
         }
 
         // Create server
@@ -208,37 +265,60 @@ class ServerCommand extends Command
         $this->info("Edit Server: {$server->name}");
 
         $data = [
-            'name' => text(label: 'Server name', default: $server->name),
-            'host' => text(label: 'Host', default: $server->host),
-            'port' => text(label: 'Port', default: (string) $server->port),
-            'username' => text(label: 'Username', default: $server->username),
-            'database' => text(label: 'Database', default: $server->database ?? '') ?: null,
-            'charset' => text(label: 'Charset', default: $server->charset),
-            'collation' => text(label: 'Collation', default: $server->collation),
+            'name' => text(
+                label: 'Server name',
+                default: $server->name,
+                required: true,
+                validate: fn ($value) => match (true) {
+                    empty($value) => 'Server name is required',
+                    $value !== $server->name && $manager->nameExists($value) => 'A server with this name already exists',
+                    default => null,
+                }
+            ),
+            'host' => text(
+                label: 'Host',
+                default: $server->host,
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Host is required' : null
+            ),
+            'port' => text(
+                label: 'Port',
+                default: (string) $server->port,
+                required: true,
+                validate: fn ($value) => match (true) {
+                    empty($value) => 'Port is required',
+                    ! is_numeric($value) => 'Port must be a number',
+                    $value < 1 || $value > 65535 => 'Port must be between 1 and 65535',
+                    default => null,
+                }
+            ),
+            'username' => text(
+                label: 'Username',
+                default: $server->username,
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Username is required' : null
+            ),
+            'database' => text(label: 'Database (optional)', default: $server->database ?? '') ?: null,
+            'charset' => text(
+                label: 'Charset',
+                default: $server->charset,
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Charset is required' : null
+            ),
+            'collation' => text(
+                label: 'Collation',
+                default: $server->collation,
+                required: true,
+                validate: fn ($value) => empty($value) ? 'Collation is required' : null
+            ),
         ];
 
         $updatePassword = confirm(label: 'Update password?', default: false);
         if ($updatePassword) {
-            $data['password'] = password(label: 'Password');
-        } else {
-            // Keep existing password for validation
-            $data['password'] = $server->password;
-        }
-
-        // Validate
-        $errors = $manager->validate($data);
-        if (! empty($errors)) {
-            $this->error('Validation failed:');
-            foreach ($errors as $field => $error) {
-                $this->error("  - {$field}: {$error}");
-            }
-
-            return self::FAILURE;
-        }
-
-        // Update server (remove password from data if not changed)
-        if (! $updatePassword) {
-            unset($data['password']);
+            $data['password'] = password(
+                label: 'Password (optional)',
+                required: false
+            ) ?: null;
         }
 
         $manager->update($server, $data);
