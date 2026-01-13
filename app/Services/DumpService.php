@@ -147,6 +147,7 @@ class DumpService
         $command .= ' --routines';
         $command .= ' --triggers';
         $command .= ' --set-gtid-purged=OFF';
+        $command .= ' --column-statistics=0'; // Disable column statistics for MySQL 8.0+ compatibility
 
         // Add database name
         $command .= ' ' . escapeshellarg($options->database);
