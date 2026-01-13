@@ -7,6 +7,8 @@ use App\ValueObjects\DumpOptions;
 use App\ValueObjects\DumpResult;
 use RuntimeException;
 
+use function Laravel\Prompts\spin;
+
 class DumpService
 {
     public function __construct(
@@ -60,10 +62,19 @@ class DumpService
                 $command .= ' > ' . escapeshellarg($outputPath);
             }
 
-            // Execute command
+            // Execute command with progress spinner
             $output = [];
             $returnCode = 0;
-            exec($command, $output, $returnCode);
+
+            // Redirect stderr to stdout to capture error messages
+            $command .= ' 2>&1';
+
+            spin(
+                function () use ($command, &$output, &$returnCode) {
+                    exec($command, $output, $returnCode);
+                },
+                'Dumping database...'
+            );
 
             // Check if command succeeded
             if ($returnCode !== 0) {

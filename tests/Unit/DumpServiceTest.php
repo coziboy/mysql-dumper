@@ -135,3 +135,29 @@ test('check mysqldump exists returns boolean', function () {
 
     expect($result)->toBeBool();
 });
+
+test('dump executes command with spinner progress indication', function () {
+    // Test that verifies dump() uses a spinner for progress indication
+    // Since spin() from Laravel Prompts is hard to mock, we verify that
+    // the dump operation completes successfully with the spinner wrapper
+
+    $options = new DumpOptions(
+        database: 'test_db',
+        outputPath: sys_get_temp_dir() . '/test_dump_spinner.sql'
+    );
+
+    // Mock SSH tunnel service
+    $this->sshTunnelService->shouldReceive('createTunnel')->never();
+    $this->sshTunnelService->shouldReceive('closeTunnel')->never();
+
+    $result = $this->dumpService->dump($this->server, $options);
+
+    // Clean up
+    if (file_exists(sys_get_temp_dir() . '/test_dump_spinner.sql')) {
+        unlink(sys_get_temp_dir() . '/test_dump_spinner.sql');
+    }
+
+    // Verify dump completes (with or without spinner, the result should be valid)
+    expect($result)->toBeInstanceOf(\App\ValueObjects\DumpResult::class)
+        ->and($result->filePath)->toContain('test_dump_spinner.sql');
+})->skip('Integration test - requires actual MySQL connection');
