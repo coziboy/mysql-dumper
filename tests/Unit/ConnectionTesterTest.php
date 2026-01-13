@@ -2,9 +2,12 @@
 
 use App\Models\Server;
 use App\Services\ConnectionTester;
+use App\Services\SshTunnelService;
+use Mockery;
 
 beforeEach(function () {
-    $this->tester = new ConnectionTester;
+    $this->sshTunnelService = Mockery::mock(SshTunnelService::class);
+    $this->tester = new ConnectionTester($this->sshTunnelService);
 });
 
 test('test method returns array with required keys', function () {

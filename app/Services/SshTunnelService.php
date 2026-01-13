@@ -60,19 +60,40 @@ class SshTunnelService
         // Close stdin
         fclose($pipes[0]);
 
-        // Give the tunnel time to establish
-        // Increased from 0.5s to 2s for more reliable connection establishment
-        usleep(2000000); // 2 seconds
+        // Wait for the tunnel to be ready by checking if the port is listening
+        $maxAttempts = 20; // 10 seconds total (20 * 0.5s)
+        $attempt = 0;
+        $tunnelReady = false;
 
-        // Check if process is still running
-        $status = proc_get_status($process);
-        if (! $status['running']) {
+        while ($attempt < $maxAttempts) {
+            // Check if process is still running
+            $status = proc_get_status($process);
+            if (! $status['running']) {
+                $stderr = stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+
+                throw new RuntimeException("SSH tunnel process died: {$stderr}");
+            }
+
+            // Check if port is listening
+            if ($this->isPortListening('127.0.0.1', $localPort)) {
+                $tunnelReady = true;
+                break;
+            }
+
+            usleep(500000); // 0.5 seconds
+            $attempt++;
+        }
+
+        if (! $tunnelReady) {
             $stderr = stream_get_contents($pipes[2]);
             fclose($pipes[1]);
             fclose($pipes[2]);
             proc_close($process);
 
-            throw new RuntimeException("SSH tunnel failed to establish: {$stderr}");
+            throw new RuntimeException("SSH tunnel failed to establish - port not listening after 10 seconds. Error: {$stderr}");
         }
 
         // Store pipes for later cleanup
@@ -184,7 +205,9 @@ class SshTunnelService
 
         // Add key-based auth if key path is provided
         if ($keyPath) {
-            $command .= ' -i ' . escapeshellarg($keyPath);
+            // Expand ~ to home directory
+            $expandedKeyPath = $this->expandPath($keyPath);
+            $command .= ' -i ' . escapeshellarg($expandedKeyPath);
         }
 
         // Add common options
@@ -257,5 +280,21 @@ class SshTunnelService
             }
             unset(self::$pipesRegistry[$id]);
         }
+    }
+
+    /**
+     * Expand ~ and relative paths to absolute paths
+     */
+    private function expandPath(string $path): string
+    {
+        // Expand ~ to home directory
+        if (str_starts_with($path, '~/')) {
+            $home = getenv('HOME') ?: (getenv('USERPROFILE') ?: '');
+            $path = $home . substr($path, 1);
+        } elseif ($path === '~') {
+            $path = getenv('HOME') ?: (getenv('USERPROFILE') ?: '');
+        }
+
+        return $path;
     }
 }
