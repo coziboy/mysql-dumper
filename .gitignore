@@ -6,6 +6,10 @@
 /database/database.sqlite
 .env
 
+# Dump files
+**/*.gz
+
 # AI-related files
 CLAUDE.md
 .claude/settings.local.json
+.agent
